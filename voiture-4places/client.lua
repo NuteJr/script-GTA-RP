@@ -1,6 +1,7 @@
 local isPassenger  = false
 local currentCar   = nil
 local currentSlot  = nil
+local noDriverAt   = nil   -- timestamp du moment où la voiture s'est retrouvée sans conducteur
 
 -- ─────────────────────────────────────────────────────────────
 -- Utilitaires
@@ -23,12 +24,36 @@ local function LoadAnim(dict)
     return HasAnimDictLoaded(dict)
 end
 
+-- Attend qu'une entité réseau soit streamée localement (elle peut ne pas
+-- l'être encore au moment où le serveur diffuse l'événement).
+local function WaitForNetEntity(netId, timeout)
+    local waited = 0
+    while waited <= timeout do
+        if NetworkDoesNetworkIdExist(netId) then
+            local ent = NetworkGetEntityFromNetworkId(netId)
+            if ent and ent ~= 0 and DoesEntityExist(ent) then return ent end
+        end
+        Citizen.Wait(100)
+        waited = waited + 100
+    end
+    return nil
+end
+
+local function GetDriverPed(vehicle)
+    if not vehicle or vehicle == 0 or not DoesEntityExist(vehicle) then return nil end
+    local driver = GetPedInVehicleSeat(vehicle, -1)
+    if not driver or driver == 0 or not DoesEntityExist(driver) then return nil end
+    return driver
+end
+
 -- ─────────────────────────────────────────────────────────────
 -- Attacher / Détacher le passager
 -- ─────────────────────────────────────────────────────────────
 
 local function AttachPassenger(passPed, car, slot)
-    local s    = Config.BackSeats[slot]
+    local s = Config.BackSeats[slot]
+    if not s then return end
+
     local bone = GetEntityBoneIndexByName(car, 'chassis_dummy')
     if bone == -1 then bone = 0 end
 
@@ -48,6 +73,13 @@ end
 local function DetachPassenger(passPed)
     DetachEntity(passPed, true, true)
     ClearPedTasks(passPed)
+end
+
+local function ResetPassengerState()
+    isPassenger = false
+    currentCar  = nil
+    currentSlot = nil
+    noDriverAt  = nil
 end
 
 -- ─────────────────────────────────────────────────────────────
@@ -70,8 +102,8 @@ local function FindNearby2SeatCar()
     if not car or car == 0 then return nil end
     if not Is2SeatCar(car) then return nil end
 
-    local driver = GetPedInVehicleSeat(car, -1)
-    if not driver or driver == 0 or driver == ped then return nil end
+    local driver = GetDriverPed(car)
+    if not driver or driver == ped then return nil end
 
     return car
 end
@@ -91,15 +123,38 @@ Citizen.CreateThread(function()
             sleep = 0
 
             -- Voiture détruite ou disparue
-            if currentCar and not DoesEntityExist(currentCar) then
+            if not currentCar or not DoesEntityExist(currentCar) then
                 DetachPassenger(ped)
-                isPassenger = false
-                currentCar  = nil
-                currentSlot = nil
-
-            -- Touche F pour descendre
-            elseif IsControlJustPressed(0, Config.MountKey) then
+                ResetPassengerState()
                 TriggerServerEvent('car4p:requestDismount')
+            else
+                local driver = GetDriverPed(currentCar)
+
+                if not driver then
+                    -- Plus de conducteur : on laisse une marge avant d'éjecter
+                    noDriverAt = noDriverAt or GetGameTimer()
+
+                    if GetGameTimer() - noDriverAt >= Config.NoDriverGrace then
+                        DetachPassenger(ped)
+                        ResetPassengerState()
+                        Notify(Config.TextEjecte)
+                        TriggerServerEvent('car4p:requestDismount')
+                    end
+                else
+                    noDriverAt = nil
+
+                    -- Ré-attache si le jeu a détaché le ped (collision, ragdoll, restream)
+                    if not IsEntityAttachedToEntity(ped, currentCar) then
+                        AttachPassenger(ped, currentCar, currentSlot)
+                    end
+
+                    -- Touche F pour descendre (le contrôle est désactivé pour
+                    -- empêcher GTA de tenter une entrée normale dans le véhicule)
+                    DisableControlAction(0, Config.MountKey, true)
+                    if IsDisabledControlJustPressed(0, Config.MountKey) then
+                        TriggerServerEvent('car4p:requestDismount')
+                    end
+                end
             end
 
         -- Mode à pied
@@ -115,7 +170,8 @@ Citizen.CreateThread(function()
                 AddTextComponentSubstringPlayerName(Config.TextMonter)
                 EndTextCommandDisplayHelp(0, false, true, -1)
 
-                if IsControlJustPressed(0, Config.MountKey) then
+                -- Le contrôle étant désactivé, il faut lire sa version "disabled"
+                if IsDisabledControlJustPressed(0, Config.MountKey) then
                     local netId = NetworkGetNetworkIdFromEntity(car)
                     TriggerServerEvent('car4p:requestMount', netId)
                 end
@@ -133,33 +189,40 @@ end)
 -- Reçu par TOUS quand un passager monte (slot = 1 ou 2)
 RegisterNetEvent('car4p:doMount')
 AddEventHandler('car4p:doMount', function(carNetId, passNetId, slot)
-    local car     = NetworkGetEntityFromNetworkId(carNetId)
-    local passPed = NetworkGetEntityFromNetworkId(passNetId)
+    Citizen.CreateThread(function()
+        local car     = WaitForNetEntity(carNetId, 2000)
+        local passPed = WaitForNetEntity(passNetId, 2000)
+        if not car or not passPed then return end
 
-    if not DoesEntityExist(car) or not DoesEntityExist(passPed) then return end
+        AttachPassenger(passPed, car, slot)
 
-    AttachPassenger(passPed, car, slot)
-
-    if passPed == PlayerPedId() then
-        isPassenger = true
-        currentCar  = car
-        currentSlot = slot
-        Notify(Config.TextMonte)
-    end
+        if passPed == PlayerPedId() then
+            isPassenger = true
+            currentCar  = car
+            currentSlot = slot
+            noDriverAt  = nil
+            Notify(Config.TextMonte)
+        end
+    end)
 end)
 
 -- Reçu par TOUS quand un passager descend
 RegisterNetEvent('car4p:doDismount')
 AddEventHandler('car4p:doDismount', function(passNetId)
-    local passPed = NetworkGetEntityFromNetworkId(passNetId)
-    if not DoesEntityExist(passPed) then return end
+    local isSelf = false
 
-    DetachPassenger(passPed)
+    if NetworkDoesNetworkIdExist(passNetId) then
+        local passPed = NetworkGetEntityFromNetworkId(passNetId)
+        if passPed and passPed ~= 0 and DoesEntityExist(passPed) then
+            isSelf = (passPed == PlayerPedId())
+            DetachPassenger(passPed)
+        end
+    end
 
-    if passPed == PlayerPedId() then
-        isPassenger = false
-        currentCar  = nil
-        currentSlot = nil
+    -- Même si le ped n'est pas streamé, l'état local doit être nettoyé
+    if isSelf or (isPassenger and passNetId == NetworkGetNetworkIdFromEntity(PlayerPedId())) then
+        ResetPassengerState()
+        DetachPassenger(PlayerPedId())
         Notify(Config.TextDescendu)
     end
 end)
@@ -174,4 +237,16 @@ end)
 RegisterNetEvent('car4p:passengerUpdate')
 AddEventHandler('car4p:passengerUpdate', function(mounted)
     Notify(mounted and Config.TextPassMonte or Config.TextPassDesc)
+end)
+
+-- ─────────────────────────────────────────────────────────────
+-- Arrêt de la ressource : ne pas laisser le joueur attaché
+-- ─────────────────────────────────────────────────────────────
+
+AddEventHandler('onResourceStop', function(resource)
+    if resource ~= GetCurrentResourceName() then return end
+    if isPassenger then
+        DetachPassenger(PlayerPedId())
+        ResetPassengerState()
+    end
 end)
