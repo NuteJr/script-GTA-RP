@@ -3,6 +3,13 @@ Config = {}
 Config.MountKey  = 23     -- Touche F (INPUT_ENTER)
 Config.Distance  = 3.0    -- Distance max pour monter (mètres)
 
+-- Marge ajoutée à Config.Distance pour la vérification serveur (latence / désync).
+Config.DistanceTolerance = 2.0
+
+-- Délai (ms) sans conducteur avant d'éjecter automatiquement les passagers arrière.
+-- Évite les faux positifs pendant les changements de place ou les micro-coupures réseau.
+Config.NoDriverGrace = 1500
+
 --[[
     Positions des 2 sièges arrière ajoutés, relatives au centre du véhicule.
     x  = gauche(-) / droite(+)
@@ -28,3 +35,4 @@ Config.TextDescendu  = '~r~Vous êtes descendu du véhicule.'
 Config.TextComplet   = '~r~Les sièges arrière sont déjà complets !'
 Config.TextPassMonte = '~g~Un passager est monté à l\'arrière !'
 Config.TextPassDesc  = '~r~Un passager est descendu.'
+Config.TextEjecte    = '~r~Le conducteur a quitté le véhicule.'
