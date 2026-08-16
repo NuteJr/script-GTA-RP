@@ -137,6 +137,46 @@ Config.Commands = {
 }
 
 -- ═════════════════════════════════════════════════════════════
+--  INTERFACE (catalogue de props)
+-- ═════════════════════════════════════════════════════════════
+
+Config.UI = {
+    -- Commande d'ouverture. Elle est aussi enregistrée comme touche
+    -- assignable : le joueur choisit sa touche dans
+    -- Paramètres → Commandes → FiveM → « Ouvrir le catalogue de props ».
+    Command    = 'props',
+    DefaultKey = '',        -- ex: 'F6'. Vide = aucune touche imposée.
+
+    --[[
+        Vignettes.
+
+        GTA/FiveM ne fournit AUCUNE image de prop : il faut les fournir.
+
+        LocalImages    chemin dans la ressource, %s remplacé par le modèle.
+                       Déposez vos PNG dans html/images/ (ex: prop_bench_01a.png).
+
+        RemoteImageURL utilisé UNIQUEMENT si l'image locale est absente.
+                       Laissez vide pour ne dépendre de rien.
+                       Si vous acceptez une dépendance externe, un site
+                       communautaire d'images de props peut être utilisé ici
+                       sous la forme 'https://exemple.tld/objects/%s.png'.
+
+        Sans image, la carte affiche l'icône de la famille : le menu reste
+        parfaitement utilisable.
+    ]]
+    LocalImages    = 'images/%s.png',
+    RemoteImageURL = '',
+
+    -- Masque les modèles absents du jeu du joueur (recommandé).
+    -- Permet d'inscrire dans catalog.lua des modèles issus de ressources
+    -- streamées sans casser le menu chez ceux qui ne les ont pas.
+    HideInvalidModels = true,
+
+    PageSize   = 60,    -- cartes rendues par paquet (défilement infini)
+    MaxRecents = 24,    -- taille de l'historique « Récents »
+}
+
+-- ═════════════════════════════════════════════════════════════
 --  Clé de cellule — partagée client/serveur, ne pas modifier.
 -- ═════════════════════════════════════════════════════════════
 

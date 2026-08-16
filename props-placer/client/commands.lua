@@ -116,8 +116,10 @@ end, false)
 -- ─────────────────────────────────────────────────────────────
 
 function Props.RegisterSuggestions()
+    TriggerEvent('chat:addSuggestion', '/' .. Config.UI.Command,
+        'Ouvrir le catalogue de props (vignettes, familles, favoris)')
     TriggerEvent('chat:addSuggestion', '/' .. Config.Commands.spawn,
-        'Poser un nouveau prop', {
+        'Poser un prop directement par son nom de modèle', {
             { name = 'modèle', help = 'ex: prop_bench_01a' },
         })
     TriggerEvent('chat:addSuggestion', '/' .. Config.Commands.move,

@@ -14,6 +14,7 @@ coûtent **aucune entité réseau**.
 - [Installation](#installation)
 - [Donner l'accès](#donner-laccès)
 - [Commandes](#commandes)
+- [Le catalogue](#le-catalogue)
 - [Le mode placement](#le-mode-placement)
 - [Persistance](#persistance)
 - [Optimisation — comment ça tient avec 200 joueurs](#optimisation--comment-ça-tient-avec-200-joueurs)
@@ -29,6 +30,7 @@ coûtent **aucune entité réseau**.
 
 | Fonction | Détail |
 |---|---|
+| **Catalogue** | Menu avec vignettes, familles, recherche, favoris et historique |
 | **Faire apparaître** | `/spawnprop <modèle>` ouvre un mode placement avec un objet fantôme |
 | **Déplacer** | `/moveprop` reprend le prop visé et le repositionne |
 | **Tourner** | Molette sur 3 axes (lacet, tangage, roulis), pas fin avec MAJ |
@@ -50,14 +52,21 @@ coûtent **aucune entité réseau**.
            └── props-placer/
                ├── fxmanifest.lua
                ├── config.lua
+               ├── catalog.lua
                ├── install.sql
                ├── client/
                │   ├── streaming.lua
                │   ├── placement.lua
+               │   ├── menu.lua
                │   └── commands.lua
                ├── server/
                │   ├── storage.lua
                │   └── main.lua
+               ├── html/
+               │   ├── index.html
+               │   ├── style.css
+               │   ├── app.js
+               │   └── images/          ← vos vignettes (voir le README dedans)
                └── data/
                    └── props.json
    ```
@@ -71,7 +80,8 @@ coûtent **aucune entité réseau**.
 3. Donnez-vous l'accès (voir la section suivante), puis testez avec :
 
    ```
-   /spawnprop prop_bench_01a
+   /props                        → ouvre le catalogue
+   /spawnprop prop_bench_01a     → pose directement par nom de modèle
    ```
 
 **Aucune dépendance obligatoire.** `oxmysql` n'est nécessaire que si vous passez la
@@ -136,6 +146,7 @@ Le type d'identifiant est réglable avec `Config.IdentifierType` (`license`, `st
 
 | Commande | Niveau | Effet |
 |---|---|---|
+| `/props` | user | Ouvre le catalogue (vignettes, familles, favoris) |
 | `/spawnprop <modèle>` | user | Ouvre le mode placement pour un nouveau prop |
 | `/moveprop` | user | Reprend le prop visé (position + rotation) |
 | `/delprop` | user | Supprime le prop visé |
@@ -146,7 +157,85 @@ Le type d'identifiant est réglable avec `Config.IdentifierType` (`license`, `st
 Le « prop visé » est celui que vous regardez (raycast depuis la caméra). Si vous ne visez rien
 de précis, le script prend le plus proche de vous.
 
-Les noms de commandes sont modifiables dans `Config.Commands`.
+Les noms de commandes sont modifiables dans `Config.Commands` (et `Config.UI.Command` pour le
+catalogue).
+
+`/props` est aussi enregistrée comme **touche assignable** : chaque joueur choisit la sienne
+dans *Paramètres → Commandes → FiveM → « Ouvrir le catalogue de props »*. Aucune touche n'est
+imposée par défaut, pour ne pas écraser un bind existant — mettez-en une dans
+`Config.UI.DefaultKey` (ex. `'F6'`) si vous préférez.
+
+---
+
+## Le catalogue
+
+`/props` ouvre un menu plein écran :
+
+- **Familles** dans la colonne de gauche (mobilier urbain, chantier, tables & chaises, caisses,
+  nourriture, nature, éclairage, bureau, divers), avec le nombre de props de chacune ;
+- **Tous / ★ Favoris / 🕘 Récents** en haut de la même colonne ;
+- **Recherche** instantanée sur le nom lisible, le nom du modèle *et* le nom de la famille ;
+- **Grille de vignettes** : clic pour passer directement en mode placement, clic sur l'étoile
+  pour mettre en favori ;
+- **Échap** pour fermer, **Entrée** dans la recherche pour prendre le premier résultat.
+
+Favoris et récents sont enregistrés **chez le joueur** (KVP local) : ils survivent aux
+reconnexions et ne coûtent rien au serveur.
+
+Si vous cherchez un modèle absent du catalogue, tapez son nom exact : un bouton
+« Placer *nom* quand même » apparaît. `/spawnprop <modèle>` reste disponible et fait la même
+chose sans passer par le menu.
+
+### Modifier le catalogue
+
+Tout est dans **`catalog.lua`**, en clair :
+
+```lua
+{ id = 'urbain', label = 'Mobilier urbain', icon = '🏙️', props = {
+    'prop_bench_01a',
+    'prop_bin_01a',
+    { model = 'prop_postbox_01a', label = 'Boîte aux lettres' },  -- libellé forcé
+}},
+```
+
+Sans `label`, le menu en génère un lisible depuis le nom du modèle
+(`prop_bench_01a` → « Bench 01a »). Pour ajouter une famille, copiez un bloc et changez `id`,
+`label` et `icon` (n'importe quel emoji).
+
+**Les modèles inexistants sont masqués automatiquement.** À l'ouverture du menu, le client
+vérifie chaque modèle avec `IsModelInCdimage`. Vous pouvez donc lister sans risque des props
+issus de vos ressources streamées : ils apparaissent chez les joueurs qui les ont et nulle part
+ailleurs. C'est aussi le filet de sécurité si un nom du catalogue fourni est erroné —
+il disparaît au lieu de provoquer une erreur.
+
+### Les vignettes
+
+**GTA V ne fournit aucune image de prop** : il n'existe pas de native pour en générer, et rien
+n'est livré avec le jeu. Elles doivent donc venir de vous. Sans image, chaque carte affiche
+l'icône de sa famille et reste parfaitement utilisable.
+
+Déposez vos PNG dans `html/images/`, nommés exactement comme le modèle :
+
+```
+html/images/prop_bench_01a.png
+```
+
+Un repli distant est disponible si vous acceptez une dépendance externe :
+
+```lua
+Config.UI.RemoteImageURL = 'https://exemple.tld/objects/%s.png'
+```
+
+Il n'est utilisé que lorsque l'image locale est absente. Le détail (comment produire les
+images, ce qu'implique le repli distant) est dans `html/images/README.md`.
+
+### Performance du menu
+
+Le catalogue est construit **une seule fois** et mis en cache : les vérifications de modèles ne
+sont pas refaites à chaque ouverture. Les cartes sont rendues **par paquets de
+`Config.UI.PageSize`** avec défilement infini, et les images utilisent le lazy loading natif du
+navigateur. Avec 500 props dans une famille, 60 cartes existent dans le DOM au démarrage, et le
+navigateur ne télécharge que les images visibles.
 
 ---
 
@@ -352,6 +441,10 @@ Ces exports passent par les mêmes validations et la même persistance que les c
 | Symptôme | Cause probable |
 |---|---|
 | « Vous n'avez pas accès aux props » | Aucune permission accordée — voir [Donner l'accès](#donner-laccès). Reconnectez-vous après un `add_ace` |
+| Le menu est vide ou une famille manque | Les modèles listés n'existent pas dans le jeu du joueur : ils sont masqués volontairement. Passez `Config.Debug = true` pour voir le décompte en console |
+| Les cartes n'ont pas d'image | Normal tant que `html/images/` est vide — voir [Les vignettes](#les-vignettes) |
+| Le menu s'ouvre mais la souris ne répond pas | Une autre ressource garde le focus NUI. Testez avec les autres menus fermés |
+| `/props` ne fait rien | La touche assignable n'est pas bindée **et** la commande a été renommée dans `Config.UI.Command` |
 | Les commandes n'apparaissent pas dans le chat | Normal sans accès : les suggestions ne sont ajoutées qu'aux joueurs autorisés |
 | « Modèle inconnu » | Le nom est faux, ou la ressource qui stream ce modèle n'est pas démarrée |
 | Le prop disparaît quand je m'éloigne | Comportement voulu : `Config.RenderDistance`. Montez-la si besoin |
@@ -374,6 +467,12 @@ Activez `Config.Debug = true` pour des logs détaillés côté client et serveur
 - Pas d'annulation (`undo`) ni d'historique : une suppression est définitive une fois
   enregistrée.
 - Pas de copier/coller ni de sélection multiple.
+- **Aucune vignette n'est fournie** : le dossier `html/images/` est vide au départ, pour ne pas
+  redistribuer des fichiers dont je ne maîtrise pas les droits. Le menu fonctionne sans, avec
+  les icônes de famille.
+- Le catalogue livré est un point de départ (environ 300 modèles courants), pas un inventaire
+  exhaustif des props du jeu — il y en a plusieurs milliers. `catalog.lua` est fait pour être
+  étendu.
 - La rotation se règle axe par axe ; il n'y a pas de gizmo 3D à la souris.
 - `Config.MaxObjects` peut masquer des props dans une zone extrêmement dense : les objets
   créés sont ceux rencontrés en premier, sans tri par distance.

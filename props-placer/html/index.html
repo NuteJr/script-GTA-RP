@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8">
+    <title>Catalogue de props</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="app" class="hidden">
+    <div class="panel">
+
+        <!-- ── En-tête ────────────────────────────────────── -->
+        <header class="head">
+            <div class="title">
+                <span class="dot"></span>
+                <h1>Catalogue de props</h1>
+            </div>
+
+            <div class="search">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="11" cy="11" r="7"></circle>
+                    <line x1="16.5" y1="16.5" x2="21" y2="21"></line>
+                </svg>
+                <input id="search" type="text" placeholder="Rechercher un prop ou un modèle…"
+                       autocomplete="off" spellcheck="false">
+                <button id="clear" class="clear hidden" title="Effacer">×</button>
+            </div>
+
+            <button id="close" class="close" title="Fermer (Échap)">×</button>
+        </header>
+
+        <div class="body">
+
+            <!-- ── Familles ───────────────────────────────── -->
+            <nav id="families" class="families"></nav>
+
+            <!-- ── Grille ─────────────────────────────────── -->
+            <main class="content">
+                <div id="grid" class="grid"></div>
+
+                <div id="empty" class="empty hidden">
+                    <div class="empty-icon">🔍</div>
+                    <p class="empty-title">Aucun prop trouvé</p>
+                    <p class="empty-sub">Essayez un autre terme, ou tapez un nom de modèle exact ci-dessous.</p>
+                    <button id="force" class="force hidden"></button>
+                </div>
+
+                <div id="sentinel" class="sentinel"></div>
+            </main>
+        </div>
+
+        <!-- ── Pied ───────────────────────────────────────── -->
+        <footer class="foot">
+            <div class="hints">
+                <span><kbd>Clic</kbd> placer</span>
+                <span><kbd>★</kbd> favori</span>
+                <span><kbd>Échap</kbd> fermer</span>
+            </div>
+            <div id="count" class="count"></div>
+        </footer>
+
+    </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
